@@ -125,244 +125,99 @@ def train_cv(X_train: pd.DataFrame, y_train: np.ndarray, params: dict, eval_metr
     return cv_output_path
 
 
+
+
 def train(
     X_train: pd.DataFrame,
-    y_train: np.ndarray,
+    y_train: pd.DataFrame,
     params: dict | None,
-    artifact_name: str = "catboost_model_loan",
+    artifact_name: str = "catboost_model_heart",
     cv_results: pd.DataFrame | None = None,
-    label_encoder: LabelEncoder | None = None,
-) -> tuple[Path, Path, Path | None]:
-    return
-    
+) -> tuple[str | Path]:
+    """Train model on full dataset without cross-validation."""
     if params is None:
-        logger.info("Training model without tuned hyperparameters (using CatBoost defaults).")
+        logger.info("Training model without tuned hyperparameters")
         params = {}
 
-    full_train_params = params.copy()
-    full_train_params.update({
-        "objective": "Logloss",
-        "eval_metric": "Logloss",
-        "random_seed": 42,
-    })
+    with mlflow.start_run():
+        loggable_params = params.copy()
+        loggable_params["feature_columns"] = list(X_train.columns)
+        loggable_params["ignored_features"] = [0]
 
-    with mlflow.start_run() as run:
-        logger.info(f"MLflow Run ID: {run.info.run_id} started for full training.")
-
-        mlflow_logged_params = full_train_params.copy()
-        if hasattr(X_train, 'columns'):
-            mlflow_logged_params["feature_columns"] = list(X_train.columns)
-        if label_encoder is not None:
-             mlflow_logged_params["target_classes"] = list(label_encoder.classes_)
-
-        logger.info(f"Logged parameters to MLflow: {mlflow_logged_params}")
-        mlflow.log_params(mlflow_logged_params)
-
-        catboost_training_params = {
-            k: v for k, v in full_train_params.items()
-            if k not in ["feature_columns", "target_classes"]
+        catboost_params = {
+            k: v for k, v in params.items()
+            if k not in ["feature_columns", "ignored_features"]
         }
 
         model = CatBoostClassifier(
-            **catboost_training_params,
-            verbose=100,
-            early_stopping_rounds=10,
+            **catboost_params,
+            verbose=True,
         )
-        logger.info(f"Starting CatBoost model training with params: {catboost_training_params}")
+
         model.fit(
             X_train,
             y_train,
-            plot=False,
+            verbose_eval=50,
+            early_stopping_rounds=50,
+            use_best_model=False,
+            plot=True,
         )
-        logger.info("Model training completed.")
+
+        mlflow.log_params(loggable_params)
 
         MODELS_DIR.mkdir(parents=True, exist_ok=True)
-        model_file_path = MODELS_DIR / f"{artifact_name}.cbm"
-        model.save_model(str(model_file_path))
-        mlflow.log_artifact(str(model_file_path), artifact_path="model_cbm_file")
-        logger.info(f"Model saved to {model_file_path} and logged as MLflow artifact.")
+        model_path = MODELS_DIR / f"{artifact_name}.cbm"
+        model.save_model(model_path)
+        mlflow.log_artifact(model_path)
 
-        le_path = None
-        if label_encoder:
-             le_path = MODELS_DIR / "label_encoder.pkl"
-             joblib.dump(label_encoder, le_path)
-             mlflow.log_artifact(str(le_path), artifact_path="label_encoder")
-             logger.info(f"LabelEncoder saved to {le_path} and logged.")
+        if cv_results is not None:
+            cv_metric_mean = cv_results["test-F1-mean"].mean()
+            mlflow.log_metric("f1_cv_mean", cv_metric_mean)
 
-        if cv_results is not None and not cv_results.empty:
-            logger.info("Logging CV results and figures.")
-            if "test-Logloss-mean" in cv_results.columns:
-                 cv_logloss_mean = cv_results["test-Logloss-mean"].mean()
-                 mlflow.log_metric("logloss_cv_mean", cv_logloss_mean)
-                 logger.info(f"Logged CV Logloss mean: {cv_logloss_mean:.4f}")
-                 if "test-Logloss-std" in cv_results.columns and "iterations" in cv_results.columns:
-                    fig2 = plot_error_scatter(
-                        df_plot=cv_results, x="iterations", y="test-Logloss-mean",
-                        err="test-Logloss-std",
-                        name="Mean logloss",
-                        title="Cross-Validation (N=5) Mean Logloss with Error Bands",
-                        xtitle="Training Steps", ytitle="Logloss",
-                    )
-                    if fig2:
-                         FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-                         fig_path = FIGURES_DIR / "test-logloss-mean_vs_iterations.png"
-                         fig2.write_image(str(fig_path))
-                         mlflow.log_artifact(str(fig_path))
-                         logger.info(f"Logged CV Logloss figure.")
-                    else:
-                         logger.warning("Failed to create CV Logloss figure.")
+            fig1 = plot_error_scatter(
+                df_plot=cv_results,
+                name="Mean F1 Score",
+                title="Cross-Validation (N=5) Mean F1 score with Error Bands",
+                xtitle="Training Steps",
+                ytitle="Performance Score",
+                yaxis_range=[0.5, 1.0],
+            )
+            mlflow.log_figure(fig1, "test-F1-mean_vs_iterations.png")
 
-            if "test-F1-mean" in cv_results.columns:
-                cv_f1_mean_metric = cv_results["test-F1-mean"].mean()
-                mlflow.log_metric("f1_cv_mean", cv_f1_mean_metric)
-                logger.info(f"Logged CV F1 mean: {cv_f1_mean_metric:.4f}")
-                if "test-F1-std" in cv_results.columns and "iterations" in cv_results.columns:
-                    fig1 = plot_error_scatter(
-                        df_plot=cv_results,
-                        name="Mean F1 Score",
-                        title="Cross-Validation (N=5) Mean F1 score with Error Bands",
-                        xtitle="Training Steps", ytitle="Performance Score",
-                    )
-                    if fig1:
-                         FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-                         fig_path = FIGURES_DIR / "test-F1-mean_vs_iterations.png"
-                         fig1.write_image(str(fig_path))
-                         mlflow.log_artifact(str(fig_path))
-                         logger.info(f"Logged CV F1 figure.")
-                    else:
-                         logger.warning("Failed to create CV F1 figure.")
+            fig2 = plot_error_scatter(
+                cv_results,
+                x="iterations",
+                y="test-Logloss-mean",
+                err="test-Logloss-std",
+                name="Mean logloss",
+                title="Cross-Validation (N=5) Mean Logloss with Error Bands",
+                xtitle="Training Steps",
+                ytitle="Logloss",
+            )
+            mlflow.log_figure(fig2, "test-logloss-mean_vs_iterations.png")
 
-            mlflow.log_artifact(str(MODELS_DIR / "cv_results.csv"), artifact_path="cv_results")
-
-        else:
-            logger.info("No CV results to log.")
-
-        logger.info("Logging model in MLflow format.")
-        input_example = X_train.head(5) if isinstance(X_train, pd.DataFrame) else None
-
-        registered_model_name_to_use = MODEL_NAME if 'MODEL_NAME' in globals() else None
-
-        mlflow_model_info = mlflow.catboost.log_model(
+        # MLflow model registry
+        model_info = mlflow.catboost.log_model(
             cb_model=model,
-            artifact_path="mlflow_catboost_model",
-            input_example=input_example,
-            registered_model_name=registered_model_name_to_use,
+            artifact_path="model",
+            input_example=X_train,
+            registered_model_name=MODEL_NAME,
         )
-        logger.info(f"Model logged via mlflow.catboost.log_model at artifact path: {mlflow_model_info.artifact_path}")
 
-        if registered_model_name_to_use:
-            logger.info(f"Attempting to update registry for model: {registered_model_name_to_use}")
-            try:
-                client = MlflowClient()
-                time.sleep(2)
-
-                latest_versions = client.get_latest_versions(registered_model_name_to_use)
-                model_version_info = None
-                for mv in latest_versions:
-                     if mv.run_id == run.info.run_id:
-                          model_version_info = mv
-                          break
-
-                if model_version_info:
-                    client.set_registered_model_alias(registered_model_name_to_use, "challenger", model_version_info.version)
-                    logger.info(f"Set alias 'challenger' for {registered_model_name_to_use} version {model_version_info.version}.")
-
-                    git_sha_val = get_git_commit_hash()
-                    if git_sha_val:
-                        client.set_model_version_tag(
-                            name=model_version_info.name, version=model_version_info.version,
-                            key="git_sha", value=git_sha_val,
-                        )
-                        logger.info(f"Set tag 'git_sha': {git_sha_val} for model version {model_version_info.version}.")
-                else:
-                    logger.warning(f"Could not find the specific model version created by run '{run.info.run_id}' for model '{registered_model_name_to_use}'. Alias/tag not set.")
-            except Exception as e:
-                 logger.error(f"Error interacting with MLflow registry: {e}")
-
-        else:
-            logger.info("Model not registered as no registered_model_name was provided/defined.")
-
-        model_params_file_path = MODELS_DIR / "model_params.pkl"
-        joblib.dump(mlflow_logged_params, model_params_file_path)
-        logger.info(f"Logged parameters (mlflow_logged_params) saved locally to {model_params_file_path}")
-        mlflow.log_artifact(str(model_params_file_path), artifact_path="run_configuration")
-
-        logger.info("Setting up NannyML monitoring objects.")
-        reference_df = X_train.copy()
-
-        predictions = model.predict(X_train)
-        predicted_probabilities = [p[1] for p in model.predict_proba(X_train)]
-
-        reference_df["prediction"] = predictions
-        reference_df["predicted_probability"] = predicted_probabilities
-        reference_df[target] = y_train
-
-        try:
-            if not ptypes.is_integer_dtype(reference_df["prediction"]):
-                 logger.debug(f"Casting 'prediction' column (current dtype: {reference_df['prediction'].dtype}) to int.")
-                 reference_df["prediction"] = reference_df["prediction"].astype(int)
-            if not ptypes.is_float_dtype(reference_df["predicted_probability"]):
-                 logger.debug(f"Casting 'predicted_probability' column (current dtype: {reference_df['predicted_probability'].dtype}) to float.")
-                 reference_df["predicted_probability"] = reference_df["predicted_probability"].astype(float)
-            if not ptypes.is_integer_dtype(reference_df[target]):
-                 logger.debug(f"Casting '{target}' column (current dtype: {reference_df[target].dtype}) to int.")
-                 reference_df[target] = reference_df[target].astype(int)
-
-            logger.debug("Successfully ensured NannyML target/prediction/probability columns have integer/float types.")
-
-        except ValueError as e:
-            logger.error(f"Failed to cast columns for NannyML: {e}. Check values/dtypes causing error.")
-            for col, dtype in [(target, int), ("prediction", int), ("predicted_probability", float)]:
-                 try:
-                      reference_df[col].astype(dtype)
-                 except ValueError:
-                       logger.error(f"Casting failed for column '{col}' to {dtype}.")
-                       logger.error(f"Value counts of column '{col}':\n{reference_df[col].value_counts().head(20)}")
-                       if reference_df[col].dtype == 'object':
-                           non_numeric = reference_df[col][pd.to_numeric(reference_df[col], errors='coerce').isna()]
-                           if not non_numeric.empty:
-                                logger.error(f"Examples of non-numeric values in '{col}': {non_numeric.unique()}")
-            raise
-
-        logger.debug("Reference DataFrame dtypes after casting:")
-        logger.debug(reference_df[[target, "prediction", "predicted_probability"]].dtypes)
-        logger.debug(f"Reference DataFrame head:\n{reference_df[[target, 'prediction', 'predicted_probability']].head()}")
-        logger.debug(f"Value counts of reference_df['{target}'] after casting:\n{reference_df[target].value_counts()}")
-        logger.debug(f"Value counts of reference_df['prediction'] after casting:\n{reference_df['prediction'].value_counts()}")
-        logger.debug(f"Reference_df['predicted_probability'] head after casting:\n{reference_df['predicted_probability'].head()}")
-
-        chunk_size = 50
-
-        feature_column_names = list(X_train.columns)
-        udc = nml.UnivariateDriftCalculator(
-            column_names=feature_column_names,
-            chunk_size=chunk_size,
+        client = MlflowClient(mlflow.get_tracking_uri())
+        model_info = client.get_latest_versions(MODEL_NAME)[0]
+        client.set_registered_model_alias(MODEL_NAME, "challenger", model_info.version)
+        client.set_model_version_tag(
+            name=model_info.name,
+            version=model_info.version,
+            key="git_sha",
+            value=get_git_commit_hash(),
         )
-        udc.fit(reference_df[feature_column_names])
-        logger.info("NannyML UnivariateDriftCalculator fitted.")
 
-        estimator = nml.CBPE(
-            problem_type="classification_binary",
-            y_pred_proba="predicted_probability",
-            y_pred="prediction",
-            y_true=target,
-            metrics=["roc_auc", "f1", "recall", "precision", "accuracy"],
-            chunk_size=chunk_size,
-        )
-        estimator = estimator.fit(reference_df)
-        logger.info("NannyML CBPE estimator fitted.")
+        model_params_path = MODELS_DIR / "model_params.pkl"
+        joblib.dump(loggable_params, model_params_path)
 
-        store = nml.io.store.FilesystemStore(root_path=str(MODELS_DIR / "nannyml_store"))
-        store.store(udc, filename="udc.pkl")
-        store.store(estimator, filename="estimator.pkl")
-        logger.info(f"NannyML objects saved to {store.root_path}")
-
-        mlflow.log_artifact(str(MODELS_DIR / "nannyml_store" / "udc.pkl"), artifact_path="nannyml_objects")
-        mlflow.log_artifact(str(MODELS_DIR / "nannyml_store" / "estimator.pkl"), artifact_path="nannyml_objects")
-        logger.info("NannyML objects logged to MLflow.")
-
-    logger.info(f"MLflow Run ID: {run.info.run_id} completed.")
-    return model_file_path, model_params_file_path, le_path
+    return (model_path, model_params_path)
 
 
 def plot_error_scatter(
@@ -451,7 +306,6 @@ if __name__ == "__main__":
             logger.debug(f"Original '{target}' column dtype: {df_train[target].dtype}")
             logger.debug(f"Original '{target}' column value counts:\n{df_train[target].value_counts()}")
         else:
-            logger.error(f"Target column '{target}' not found in the loaded training data.")
             raise ValueError(f"Target column '{target}' not found.")
 
         y_train_original = df_train.pop(target)
