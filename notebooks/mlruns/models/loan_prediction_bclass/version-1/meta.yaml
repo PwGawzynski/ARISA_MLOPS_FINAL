@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1746697623668
+current_stage: None
+description: null
+last_updated_timestamp: 1746697623668
+name: loan_prediction_bclass
+run_id: fe2f778457c349468fb60e1424d9416c
+run_link: null
+source: file:///Users/pwgawzynski/WebstormProjects/ARISA_MLOPS_FINAL/notebooks/mlruns/0/fe2f778457c349468fb60e1424d9416c/artifacts/model
+status: READY
+status_message: null
+storage_location: file:///Users/pwgawzynski/WebstormProjects/ARISA_MLOPS_FINAL/notebooks/mlruns/0/fe2f778457c349468fb60e1424d9416c/artifacts/model
+user_id: null
+version: 1
