@@ -1,0 +1,77 @@
+artifact_path: model
+flavors:
+  catboost:
+    catboost_version: 1.2.8
+    code: null
+    data: model.cb
+    model_type: CatBoostClassifier
+    save_format: cbm
+  python_function:
+    data: model.cb
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.catboost
+    python_version: 3.10.13
+is_signature_from_type_hint: false
+mlflow_version: 2.22.0
+model_size_bytes: 339599
+model_uuid: d471b84f32364f59b2db4e33e275aa5a
+prompts: null
+run_id: fe2f778457c349468fb60e1424d9416c
+saved_input_example_info:
+  artifact_path: input_example.json
+  pandas_orient: split
+  serving_input_path: serving_input_example.json
+  type: dataframe
+signature:
+  inputs: '[{"type": "double", "name": "occupation__occupation_Accountant", "required":
+    true}, {"type": "double", "name": "occupation__occupation_Analyst", "required":
+    true}, {"type": "double", "name": "occupation__occupation_Architect", "required":
+    true}, {"type": "double", "name": "occupation__occupation_Artist", "required":
+    true}, {"type": "double", "name": "occupation__occupation_Banker", "required":
+    true}, {"type": "double", "name": "occupation__occupation_Chef", "required": true},
+    {"type": "double", "name": "occupation__occupation_Consultant", "required": true},
+    {"type": "double", "name": "occupation__occupation_Dentist", "required": true},
+    {"type": "double", "name": "occupation__occupation_Designer", "required": true},
+    {"type": "double", "name": "occupation__occupation_Doctor", "required": true},
+    {"type": "double", "name": "occupation__occupation_Editor", "required": true},
+    {"type": "double", "name": "occupation__occupation_Electrician", "required": true},
+    {"type": "double", "name": "occupation__occupation_Engineer", "required": true},
+    {"type": "double", "name": "occupation__occupation_HR", "required": true}, {"type":
+    "double", "name": "occupation__occupation_IT", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Lawyer", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Manager", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Marketing", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Musician", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Nurse", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Pharmacist", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Photographer", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Pilot", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Professor", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Programmer", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Psychologist", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Realtor", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Receptionist", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Researcher", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Sales", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Salesman", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Server", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Software", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Student", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Stylist", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Teacher", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Veterinarian", "required": true}, {"type": "double",
+    "name": "occupation__occupation_Writer", "required": true}, {"type": "double",
+    "name": "marital_status__marital_status_Married", "required": true}, {"type":
+    "double", "name": "marital_status__marital_status_Single", "required": true},
+    {"type": "double", "name": "gender__gender_Female", "required": true}, {"type":
+    "double", "name": "gender__gender_Male", "required": true}, {"type": "double",
+    "name": "education_level__education_level", "required": true}, {"type": "long",
+    "name": "remainder__age", "required": true}, {"type": "long", "name": "remainder__income",
+    "required": true}, {"type": "long", "name": "remainder__credit_score", "required":
+    true}]'
+  outputs: '[{"type": "string", "required": true}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2025-05-08 09:47:00.419542'
