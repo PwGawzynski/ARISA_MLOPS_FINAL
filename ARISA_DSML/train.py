@@ -1,7 +1,6 @@
 import typer
 from pathlib import Path
 import numpy as np
-from sklearn.preprocessing import LabelEncoder
 from catboost import CatBoostClassifier, Pool, cv
 import joblib
 from loguru import logger
@@ -12,18 +11,14 @@ import pandas as pd
 import plotly.graph_objects as go
 from sklearn.metrics import f1_score, log_loss
 from sklearn.model_selection import train_test_split
-import pandas.api.types as ptypes # Import for type checking
 
 from ARISA_DSML.config import (
-    FIGURES_DIR,
     MODEL_NAME,
     MODELS_DIR,
     PROCESSED_DATA_DIR,
     target,
 )
 from ARISA_DSML.helpers import get_git_commit_hash
-import nannyml as nml
-import time
 
 
 app = typer.Typer()
@@ -63,7 +58,7 @@ def run_hyperopt(X_train: pd.DataFrame, y_train: np.ndarray, test_size: float = 
                         early_stopping_rounds=5,
                         verbose=0,
                     )
-                    logger.info(f"Trial finished successfully.")
+                    logger.info("Trial finished successfully.")
                     preds = model.predict(X_val_opt)
                     probs = model.predict_proba(X_val_opt)
 
@@ -123,8 +118,6 @@ def train_cv(X_train: pd.DataFrame, y_train: np.ndarray, params: dict, eval_metr
     logger.success(f"CV results saved to {cv_output_path}")
 
     return cv_output_path
-
-
 
 
 def train(
@@ -235,8 +228,8 @@ def plot_error_scatter(
         logger.warning(f"Cannot plot: Missing columns '{x}' or '{y}' in DataFrame.")
         return None
     if err and err not in df_plot.columns:
-         logger.warning(f"Cannot plot error band: Missing column '{err}' in DataFrame.")
-         err = None
+        logger.warning(f"Cannot plot error band: Missing column '{err}' in DataFrame.")
+        err = None
 
     fig = go.Figure()
 
@@ -293,69 +286,23 @@ def get_or_create_experiment(experiment_name: str):
 
 
 if __name__ == "__main__":
-    logger.info("Starting training pipeline.")
-    PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    logger.info("Loading data")
+    # for running in workflow in actions again again
+    df_train = pd.read_csv(PROCESSED_DATA_DIR / "train.csv")
 
-    try:
-        df_train = pd.read_csv(PROCESSED_DATA_DIR / "train.csv")
-        logger.info(f"Loaded training data from {PROCESSED_DATA_DIR / 'train.csv'}. Shape: {df_train.shape}")
+    y_train = df_train.pop(target)
+    X_train = df_train
 
-        if target in df_train.columns:
-            logger.debug(f"Original '{target}' column dtype: {df_train[target].dtype}")
-            logger.debug(f"Original '{target}' column value counts:\n{df_train[target].value_counts()}")
-        else:
-            raise ValueError(f"Target column '{target}' not found.")
+    # categorical_indices = [X_train.columns.get_loc(col) for col in categorical if col in X_train.columns]
+    experiment_id = get_or_create_experiment("heart_disease_hyperparam_tuning")
+    mlflow.set_experiment(experiment_id=experiment_id)
+    best_params_path = run_hyperopt(X_train, y_train)
+    params = joblib.load(best_params_path)
+    cv_output_path = train_cv(X_train, y_train, params)
+    cv_results = pd.read_csv(cv_output_path)
 
-        y_train_original = df_train.pop(target)
-        X_train = df_train
-        logger.info(f"Separated target '{target}'. X_train shape: {X_train.shape}, y_train shape: {y_train_original.shape}")
+    experiment_id = get_or_create_experiment("heart_disease_full_training")
+    mlflow.set_experiment(experiment_id=experiment_id)
+    model_path, model_params_path = train(X_train, y_train, params, cv_results=cv_results)
 
-        le = LabelEncoder()
-        y_train_encoded = le.fit_transform(y_train_original)
-        logger.info(f"Encoded target variable using LabelEncoder. Classes: {le.classes_}")
-        logger.debug(f"Encoded y_train dtype: {y_train_encoded.dtype}")
-        logger.debug(f"Encoded y_train first 5 values: {y_train_encoded[:5]}")
-
-        experiment_id_hp = get_or_create_experiment("loan_prediction_hyperparam_tuning")
-        mlflow.set_experiment(experiment_id=experiment_id_hp)
-        logger.info("Running hyperparameter tuning.")
-        best_params_path = run_hyperopt(X_train, y_train_encoded)
-        params = joblib.load(best_params_path)
-        logger.success("Hyperparameter tuning completed.")
-
-        experiment_id_cv = get_or_create_experiment("loan_prediction_cv_training")
-        mlflow.set_experiment(experiment_id=experiment_id_cv)
-        logger.info("Running cross-validation.")
-        cv_output_path = train_cv(X_train, y_train_encoded, params)
-        cv_results = pd.read_csv(cv_output_path)
-        logger.success("Cross-validation completed.")
-
-        experiment_id_full = get_or_create_experiment("loan_prediction_full_training")
-        mlflow.set_experiment(experiment_id=experiment_id_full)
-        logger.info("Starting final model training on full data.")
-        model_path, model_params_path, le_path = train(
-            X_train,
-            y_train_encoded,
-            params,
-            cv_results=cv_results,
-            label_encoder=le
-        )
-        logger.success("Full model training completed.")
-
-        print("\n--- Training Pipeline Completed ---")
-        print(f"Best parameters saved at: {best_params_path}")
-        print(f"CV results saved at: {cv_output_path}")
-        print(f"Final model saved at: {model_path}")
-        print(f"Final model parameters saved at: {model_params_path}")
-        if le_path:
-            print(f"Label Encoder saved at: {le_path}")
-        print(f"MLflow Run ID (Full Train): {mlflow.active_run().info.run_id}")
-
-    except FileNotFoundError as e:
-        logger.error(f"Required file not found: {e}. Ensure processed data exists.")
-    except ValueError as e:
-         logger.error(f"Data processing error: {e}")
-    except Exception as e:
-        logger.exception(f"An unexpected error occurred during the training pipeline: {e}")
+    cv_results = pd.read_csv(cv_output_path)

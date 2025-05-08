@@ -1,6 +1,5 @@
 """Functions for preprocessing the data."""
 from pathlib import Path
-from tqdm import tqdm
 from kaggle.api.kaggle_api_extended import KaggleApi
 from sklearn.preprocessing import OrdinalEncoder
 from sklearn.preprocessing import OneHotEncoder
@@ -22,7 +21,7 @@ def get_raw_data(dataset_name: str = DATASET) -> None:
 
     # Create the download folder if it doesn't exist
     download_folder.mkdir(parents=True, exist_ok=True)
-    
+
     print(f"RAW_DATA_DIR is: {RAW_DATA_DIR}")
 
     api.dataset_download_files(dataset_name, path=str(download_folder), unzip=True)
@@ -54,7 +53,6 @@ def preprocess_df(file: str | Path) -> tuple[Path, Path]:
 
 
 def build_preprocessor() -> ColumnTransformer:
-    smoking_status = [['formerly smoked', 'never smoked', 'smokes', 'Unknown']]
     hot_encoder_occ = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
     hot_encoder_marital = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
     hot_encoder_gender = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
@@ -62,10 +60,10 @@ def build_preprocessor() -> ColumnTransformer:
 
     return ColumnTransformer(
         transformers=[
-        ('occupation', hot_encoder_occ, ['occupation']),
-        ('marital_status', hot_encoder_marital, ['marital_status']),
-        ('gender', hot_encoder_gender, ['gender']),
-        ('education_level', ordinal_encoder_education, ['education_level'])
+            ('occupation', hot_encoder_occ, ['occupation']),
+            ('marital_status', hot_encoder_marital, ['marital_status']),
+            ('gender', hot_encoder_gender, ['gender']),
+            ('education_level', ordinal_encoder_education, ['education_level'])
         ],
         remainder='passthrough'
     )
