@@ -126,7 +126,7 @@ mlflow==2.22.0
 mlflow-skinny==2.22.0
 multidict==6.4.3
 mypy_extensions==1.1.0
-nannyml==0.13.0
+nannyml>=0.14
 narwhals==1.38.0
 nbclient==0.10.2
 nbconvert==7.16.6
