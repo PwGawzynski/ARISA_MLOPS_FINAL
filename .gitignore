@@ -37,6 +37,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+./kaggle.json
+kaggle.json
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -312,3 +314,4 @@ ARISA_DSML/catboost_info/fold-4/time_left.tsv
 ARISA_DSML/catboost_info/fold-4/learn/events.out.tfevents
 ARISA_DSML/catboost_info/fold-4/test/events.out.tfevents
 ARISA_DSML/catboost_info/learn/events.out.tfevents
+keggle.json

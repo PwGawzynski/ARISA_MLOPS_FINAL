@@ -19,7 +19,11 @@ from ARISA_DSML.config import (
     target,
 )
 from ARISA_DSML.helpers import get_git_commit_hash
+from mlflow.models.signature import infer_signature
 
+
+import os
+os.environ["MLFLOW_MODEL_SIGNATURE_INFERENCE_TIMEOUT"] = "60"
 
 app = typer.Typer()
 
@@ -162,7 +166,7 @@ def train(
         model_path = MODELS_DIR / f"{artifact_name}.cbm"
         model.save_model(model_path)
         mlflow.log_artifact(model_path)
-
+    
         if cv_results is not None:
             cv_metric_mean = cv_results["test-F1-mean"].mean()
             mlflow.log_metric("f1_cv_mean", cv_metric_mean)
@@ -188,16 +192,21 @@ def train(
                 ytitle="Logloss",
             )
             mlflow.log_figure(fig2, "test-logloss-mean_vs_iterations.png")
-
-        # MLflow model registry
-        model_info = mlflow.catboost.log_model(
-            cb_model=model,
-            artifact_path="model",
-            input_example=X_train,
-            registered_model_name=MODEL_NAME,
-        )
-
-        client = MlflowClient(mlflow.get_tracking_uri())
+        
+        try:
+            registered_model_name_to_use = MODEL_NAME if 'MODEL_NAME' in globals() else None
+            input_example = X_train.head(5) if isinstance(X_train, pd.DataFrame) else None
+            # MLflow model registry
+            model_info = mlflow.catboost.log_model(
+                cb_model=model,
+                artifact_path="mlflow_catboost_model",
+                input_example=input_example,
+                registered_model_name=registered_model_name_to_use,
+            )
+        except Exception as e:
+            print(f"Error while logging model: {e}")
+        
+        client = MlflowClient()
         model_info = client.get_latest_versions(MODEL_NAME)[0]
         client.set_registered_model_alias(MODEL_NAME, "challenger", model_info.version)
         client.set_model_version_tag(
@@ -292,7 +301,7 @@ if __name__ == "__main__":
 
     y_train = df_train.pop(target)
     X_train = df_train
-
+    print("ELO_1")
     # categorical_indices = [X_train.columns.get_loc(col) for col in categorical if col in X_train.columns]
     experiment_id = get_or_create_experiment("heart_disease_hyperparam_tuning")
     mlflow.set_experiment(experiment_id=experiment_id)
@@ -300,7 +309,7 @@ if __name__ == "__main__":
     params = joblib.load(best_params_path)
     cv_output_path = train_cv(X_train, y_train, params)
     cv_results = pd.read_csv(cv_output_path)
-
+    print("ELO_2")
     experiment_id = get_or_create_experiment("heart_disease_full_training")
     mlflow.set_experiment(experiment_id=experiment_id)
     model_path, model_params_path = train(X_train, y_train, params, cv_results=cv_results)
